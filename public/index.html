@@ -1,0 +1,30 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Side wall of the internet.</title>
+    <script src="https://cdn.socket.io/4.4.0/socket.io.min.js"></script>
+    <!-- <meta http-equiv="X-UA-Compatible" content="IE=edge"> -->
+    <link rel="stylesheet" href="style.css");
+
+</head>
+<body>
+    <canvas width="4096" height="4096" id="canvas"></canvas>
+
+    <div id="UI">
+        <div id="colorPicker">
+            <div class="colorElement activeColorElement" data-color="#3BDB40"></div>
+            <div class="colorElement" data-color="#DB0B05"></div>
+            <div class="colorElement" data-color="#FAF40F"></div>
+            <div class="colorElement" data-color="#4A2DF0"></div>
+            <div class="colorElement" data-color="#000"></div>
+            <div class="colorElement" data-color="#fff"></div>
+        </div>
+        <input type="range" id="strokeSlider" min="2" max="32" value="2">
+    </div>
+
+    
+    <!-- <canvas width="400" height="400" id="canvas"></canvas>  -->
+    <script src="app.js"></script>
+</body>
+</html>

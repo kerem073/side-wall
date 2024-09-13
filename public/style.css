@@ -5,9 +5,13 @@
 
 #UI {
     position: fixed;
-    top: 5;
-    left: 5;
+    left: 5px;
+    top: 50vh;
+    transform: translate(50%, -50%);
     transition: 0.2; /* https://cloudfour.com/thinks/transitioning-hidden-elements/ */
+    background: rgba(190, 190, 190, 0.4);
+    padding: 10px;
+    border-radius: 8px;
 }
 
 .colorElement{

@@ -1,7 +1,32 @@
+const socket  = new WebSocket("ws://localhost:3000/point");
+
+socket.addEventListener("open", (event) => {
+    // socket.send("Connected");
+});
+
+socket.addEventListener("message", (event) => {
+    console.log("message from server: " + event.data);
+});
+
 const canvasElement = document.getElementById("canvas");
 const canvasContext = canvasElement.getContext("2d");
 
 let isDrawing = false;
+
+class Point{
+    x = 0;
+    y = 0;
+    order = 0; // order of the point in the line
+    lid = 0; // the id of the line that the point 
+    lcolor = 0;
+    lthickness = 0;
+    date = 0;
+
+    constructor(newx, newy){
+        this.x = newx;
+        this.y = newy;
+    }
+}
 
 class Lines{
     currentOrder = 0;
@@ -20,6 +45,11 @@ class Lines{
         point.lcolor = lcolor;
         point.lthickness = lthickness;
         this.currentOrder++;
+
+        let date = new Date();
+        let formattedDate = date.toISOString().slice(0, 19).replace('T', ' ');
+        point.date = formattedDate;
+
         this.points.push(point);
 
         if (this.pPoint){
@@ -52,44 +82,41 @@ class Lines{
     }
 
     sendPoints(){
-        if (points.length > 0){
-            for (let i = 0; i < points.length; i++){
-                // TODO: SEND POINT HERE
+        if (this.points.length > 0){
+            for (let i = 0; i < this.points.length; i++){
                 // https://www.developer.com/languages/intro-socket-programming-go/
-                points = points.splice(i, 1)
+                
+                let point = this.points[i];
+                let data = {};
+                data.x = point.x;
+                data.y = point.y;
+                data.order = point.order;
+                data.lid = point.lid;
+                data.lcolor = point.lcolor;
+                data.lthickness = point.lthickness;
+                data.date = point.date;
+
+                socket.send(JSON.stringify(data))
+                this.points.shift()
             }
         }
     }
 }
 
-class Point{
-    x = 0;
-    y = 0;
-    order = 0; // order of the point in the line
-    lid = 0; // the id of the line that the point 
-    lcolor = 0;
-    lthickness = 0;
-    date = 0;
-
-    constructor(newx, newy){
-        this.x = newx;
-        this.y = newy;
-    }
-}
 
 let lines = new Lines();
 
 let UIElement = document.getElementById("UI");
 
 // Setting up stroke weight 
-let strokeWeight;
+let strokeWeight = 2;
 let strokeSlider = document.getElementById("strokeSlider");
 strokeSlider.addEventListener("input", (event) => {
-    strokeWeight = event.target.value;
+    strokeWeight = parseInt(event.target.value);
 });
 
 // Setting up stroke color
-let strokeColor;
+let strokeColor = "#000";
 let colorElements = document.getElementsByClassName('colorElement'); // get the color elements
 for (let i = 0; i < colorElements.length; i++) {
     colorElements[i].style.backgroundColor = colorElements[i].dataset.color;
@@ -115,10 +142,10 @@ canvasElement.addEventListener("mouseup", (event) =>{
 
 canvasElement.addEventListener("mousemove", (event) =>{
     if (event.target.isEqualNode(canvasElement) && isDrawing){
-        lines.addPoint(event.pageX, event.pageY);
+        lines.addPoint(event.pageX, event.pageY, strokeColor, strokeWeight);
+        lines.sendPoints();
     }
 });
-
 
 // TODO: the very first time clicking and dragging, the UIElement moves up. But after that you can use it as normal.
 let UIdrag = false;

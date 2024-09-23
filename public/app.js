@@ -5,112 +5,141 @@ socket.addEventListener("open", (event) => {
 });
 
 socket.addEventListener("message", (event) => {
-    console.log("message from server: " + event.data);
+    // console.log("message from server: " + event.data);
+});
+
+//  TODO: put everything in modules
+//  TODO: get other peoples strokes
+//  TODO: get the canvas from the database
+//  TODO: implement AUTH + physical qr code? samen met de wsc? >>> if the average differences between points is big in very short amount of time, they will get a warning and then removed.
+
+socket.addEventListener("error", (event) => {
+  console.log("WebSocket error: ", event);
 });
 
 const canvasElement = document.getElementById("canvas");
 const canvasContext = canvasElement.getContext("2d");
 
 let isDrawing = false;
+let UIdrag = false;
+
+class MessageDTO{
+    x = 0;
+    y = 0;
+    order_number = 0;
+    line_id = 0;
+    line_color = 0;
+    line_thickness = 0;
+    datetime = 0;
+}
 
 class Point{
     x = 0;
     y = 0;
-    order = 0; // order of the point in the line
-    lid = 0; // the id of the line that the point 
-    lcolor = 0;
-    lthickness = 0;
-    date = 0;
+    order_number = 0; // order of the point in the line
+    line_id = 0; // the id of the line that the point
+    datetime = 0;
 
-    constructor(newx, newy){
+    constructor(newx, newy, lid, order){
         this.x = newx;
         this.y = newy;
+        this.order_number = order;
+        this.line_id = lid;
+
+        let datetime = new Date();
+        let formattedDate = datetime.toISOString().slice(0, 19).replace('T', ' ');
+        this.datetime = formattedDate;
     }
 }
 
-class Lines{
-    currentOrder = 0;
+class Line{
+    line_id = 0;
+    current_length = 0;
+    line_color = 0;
+    line_thickness = 0;
+    latest_point = 0;
     points = [];
-    pPoint = 0;
-    lid = 0;
-    constructor(){
+
+    constructor(color, weight){
         this.newLine();
+        this.line_color = color;
+        this.line_thickness = weight;
     }
 
     // addPoint adds a point to the line and draws at the same time
-    addPoint(x, y, lcolor, lthickness){
-        let point = new Point(x, y);
-        point.lid = this.lid;
-        point.order = this.currentOrder;
-        point.lcolor = lcolor;
-        point.lthickness = lthickness;
-        this.currentOrder++;
-
-        let date = new Date();
-        let formattedDate = date.toISOString().slice(0, 19).replace('T', ' ');
-        point.date = formattedDate;
+    addPoint(x, y){
+        let point = new Point(x, y, this.line_id, this.current_length);
 
         this.points.push(point);
 
-        if (this.pPoint){
-            canvasContext.beginPath();
-            canvasContext.moveTo(this.pPoint.x, this.pPoint.y);
-            canvasContext.lineTo(this.pPoint.x, this.pPoint.y);
-            canvasContext.lineTo(point.x, point.y);
-            canvasContext.strokeStyle = point.lcolor;
-            canvasContext.lineWidth = point.lthickness;
+        canvasContext.beginPath();
+        if (this.current_length == 0){
+            canvasContext.strokeStyle = this.line_color;
+            canvasContext.lineWidth = this.line_thickness;
             canvasContext.lineCap = "round";
-            canvasContext.stroke();
-            // canvasContext.closePath();
-        } else {
-            canvasContext.beginPath();
             canvasContext.moveTo(point.x, point.y);
             canvasContext.lineTo(point.x, point.y);
-            canvasContext.strokeStyle = strokeColor;
-            canvasContext.lineWidth = strokeWeight;
+            canvasContext.stroke();
+        } else {
+            canvasContext.strokeStyle = this.line_color;
+            canvasContext.lineWidth = this.line_thickness;
             canvasContext.lineCap = "round";
+            canvasContext.moveTo(this.latest_point.x, this.latest_point.y);
+            canvasContext.lineTo(this.latest_point.x, this.latest_point.y);
+            canvasContext.lineTo(point.x, point.y);
             canvasContext.stroke();
         }
 
-        this.pPoint = point;
+        this.latest_point = point;
+        this.current_length++;
     }
 
     newLine(){
-        this.lid = Math.random().toString(16).slice(2);
-        this.pPoint = 0;
-        this.currentOrder = 0;
-    }
-
-    sendPoints(){
-        if (this.points.length > 0){
-            for (let i = 0; i < this.points.length; i++){
-                // https://www.developer.com/languages/intro-socket-programming-go/
-                
-                let point = this.points[i];
-                let data = {};
-                data.x = point.x;
-                data.y = point.y;
-                data.order = point.order;
-                data.lid = point.lid;
-                data.lcolor = point.lcolor;
-                data.lthickness = point.lthickness;
-                data.date = point.date;
-
-                socket.send(JSON.stringify(data))
-                this.points.shift()
-            }
-        }
+        this.line_id = Math.random().toString(16).slice(2);
+        this.current_length = 0;
+        this.points = [];
     }
 }
 
+class CanvasManager {
+    points_pool = [];
+    curLine = 0;
+    
+    beginLine(){
+        this.curLine = new Line(strokeColor, strokeWeight);
+    }
 
-let lines = new Lines();
+    addPoint(x, y){
+        this.curLine.addPoint(x, y);
+        let latest_point = this.curLine.latest_point;
+        let msg = new MessageDTO();
+
+        msg.x = x;
+        msg.y = y;
+        msg.order_number = latest_point.order_number;
+        msg.line_id = latest_point.line_id;
+        msg.line_color = latest_point.line_color;
+        msg.line_thickness = latest_point.line_thickness;
+        msg.datetime = latest_point.datetime;
+
+        this.points_pool.push(msg);
+    }
+
+    sendPoints(){
+        for (let i = 0; i < this.points_pool.length; i++){
+            console.log("sending: " + JSON.stringify(this.points_pool[i]));
+            socket.send(JSON.stringify(this.points_pool[i]));
+        }
+        this.points_pool = [];
+    }
+
+}
 
 let UIElement = document.getElementById("UI");
 
 // Setting up stroke weight 
-let strokeWeight = 2;
 let strokeSlider = document.getElementById("strokeSlider");
+let strokeWeight = parseInt(strokeSlider.value);
 strokeSlider.addEventListener("input", (event) => {
     strokeWeight = parseInt(event.target.value);
 });
@@ -130,25 +159,27 @@ for (let i = 0; i < colorElements.length; i++) {
     });
 }
 
-// TODO: Can't draw where the UIElement is
+let canvasManager = new CanvasManager();
+
+// TODO: Can't draw where the UIElement is -> remove and add eventlistener of the UIelement when drawing and stop drawing
 canvasElement.addEventListener("mousedown", (event) =>{
     isDrawing = true;
-    lines.newLine();
+    canvasManager.beginLine();
+});
+
+canvasElement.addEventListener("mousemove", (event) =>{
+    if (event.target.isEqualNode(canvasElement) && isDrawing){
+        canvasManager.addPoint(event.pageX, event.pageY);
+        canvasManager.sendPoints();
+    }
+    if (!UIdrag){
+        event.stopPropagation()
+    }
 });
 
 canvasElement.addEventListener("mouseup", (event) =>{
     isDrawing = false;
 });
-
-canvasElement.addEventListener("mousemove", (event) =>{
-    if (event.target.isEqualNode(canvasElement) && isDrawing){
-        lines.addPoint(event.pageX, event.pageY, strokeColor, strokeWeight);
-        lines.sendPoints();
-    }
-});
-
-// TODO: the very first time clicking and dragging, the UIElement moves up. But after that you can use it as normal.
-let UIdrag = false;
 
 let mouseOffsetX = 0;
 let mouseOffsetY = 0;
@@ -178,8 +209,8 @@ document.addEventListener("mousemove", (event) => {
             let offsetx = event.clientX - pmousex;
             let offsety = event.clientY - pmousey;
 
-            let currentLeft = parseFloat(UIElement.style.left + (UIElement.style.width / 2)) || 0;
-            let currentTop = parseFloat(UIElement.style.top + (UIElement.style.height / 2)) || 0;
+            let currentLeft = parseFloat(UIElement.style.left + (UIElement.style.width / 2));
+            let currentTop = parseFloat(UIElement.style.top + (UIElement.style.height / 2));
 
             let newX = currentLeft + offsetx;
             let newY = currentTop + offsety;

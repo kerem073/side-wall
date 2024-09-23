@@ -118,9 +118,9 @@ class CanvasManager {
         msg.y = y;
         msg.order_number = latest_point.order_number;
         msg.line_id = latest_point.line_id;
-        msg.line_color = latest_point.line_color;
-        msg.line_thickness = latest_point.line_thickness;
         msg.datetime = latest_point.datetime;
+        msg.line_color = this.curLine.line_color;
+        msg.line_thickness = this.curLine.line_thickness;
 
         this.points_pool.push(msg);
     }

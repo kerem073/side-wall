@@ -3,41 +3,16 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"net/http"
+	"side_wall/canvas"
+	"side_wall/utils"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
 )
 
-// TODO: TIME FOR REFECTOR INTO MODULES + en structs
 // TODO: stuur het hele canvas naar de niewue connectie
-
-type Line struct {
-	Id        string `json:"id"`
-	Length    int    `json:"length"`
-	Color     string `json:"color"`
-	Thickness int    `json:"thickness"`
-	Points    []Point
-}
-
-type Point struct {
-	X           int    `json:"x"`
-	Y           int    `json:"y"`
-	OrderNumber int    `json:"order_number"`
-	LineId      string `json:"line_id"`
-	DateTime    string `json:"datetime"`
-}
-
-type MessageDTO struct {
-	X             int    `json:"x"`
-	Y             int    `json:"y"`
-	OrderNumber   int    `json:"order_number"`
-	LineId        string `json:"line_id"`
-	LineColor     string `json:"line_color"`
-	LineThickness int    `json:"line_thickness"`
-	DateTime      string `json:"datetime"`
-}
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -51,7 +26,7 @@ func saveUserPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// dsn := "root:lordofthegame666@tcp(127.0.0.1:3306)/sidewall"
+	// establish database connection
 	dsn := "root:lordofthegame666@tcp(127.0.0.1:3306)/sidewall2"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -59,9 +34,14 @@ func saveUserPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	var line Line
+	err = db.Ping()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	var line canvas.Line
 	for {
-		var msg MessageDTO
+		var msg utils.MessageDTO
 
 		err := conn.ReadJSON(&msg)
 		if err != nil {
@@ -69,70 +49,33 @@ func saveUserPoints(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		err = db.Ping()
-		if err != nil {
-			fmt.Println(err)
-		}
-
 		tx, err := db.Begin()
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		// NOTE: We collect all the points first. after that, when we get a new lineId, we add the line_length and insert it into the database.
-		if msg.LineId == line.Id {
-			var point Point
-			point.X = msg.X
-			point.Y = msg.Y
-			point.DateTime = msg.DateTime
-			point.OrderNumber = msg.OrderNumber
-			point.LineId = msg.LineId
-			line.Points = append(line.Points, point) // TODO: Make method in Line for creating point and adding into points.
-		} else if len(line.Points) > 0 {
+		if msg.LineId == line.Id { // NOTE: We collect all the points first and when a line ends, we add it to the database. so that we know the length of the line
+			line.AddPoint(msg)
+		} else if len(line.Points) > 0 { // NOTE: if the id's dont match check if we have points left from the previous line, if so, insert them with the line and line length
 
 			line.Length = len(line.Points)
 
-			lineQuery := "INSERT INTO lines_details (line_id, line_length, line_color, line_thickness) VALUES (?, ?, ?, ?);"
-			_, err = tx.Exec(lineQuery, line.Id, line.Length, line.Color, line.Thickness)
+			err := line.InsertLine(tx)
 			if err != nil {
-				tx.Rollback()
 				fmt.Println(err)
 			}
 
-			for _, point := range line.Points {
-				pointQuery := "INSERT INTO points (x, y, order_number, line_id, datetime) VALUES (?, ?, ?, ?, ?);"
-				_, err = tx.Exec(pointQuery, point.X, point.Y, point.OrderNumber, point.LineId, point.DateTime)
-				if err != nil {
-					tx.Rollback()
-					fmt.Println(err)
-				}
+			err = line.InsertPointPool(tx)
+			if err != nil {
+				fmt.Println(err)
 			}
 
-			// NOTE: after adding the points that where saved with the length of the line, add the point that we just received to the points.
-			line.Points = nil
-			line.Color = msg.LineColor
-			line.Id = msg.LineId
-			line.Thickness = msg.LineThickness
+			line.NewLine(msg)
+			line.AddPoint(msg)
 
-			var point Point
-			point.X = msg.X
-			point.Y = msg.Y
-			point.DateTime = msg.DateTime
-			point.OrderNumber = msg.OrderNumber
-			point.LineId = msg.LineId
-			line.Points = append(line.Points, point) // TODO: Make method in Line for creating point and adding into points.
-		} else {
-			line.Id = msg.LineId
-			line.Color = msg.LineColor
-			line.Thickness = msg.LineThickness
-
-			var point Point
-			point.X = msg.X
-			point.Y = msg.Y
-			point.DateTime = msg.DateTime
-			point.OrderNumber = msg.OrderNumber
-			point.LineId = msg.LineId
-			line.Points = append(line.Points, point) // TODO: Make method in Line for creating point and adding into points.
+		} else { // NOTE: if the the ids dont match and there are no points, it is the first line, so create a new line and add the point
+			line.NewLine(msg)
+			line.AddPoint(msg)
 		}
 
 		err = tx.Commit()

@@ -7,7 +7,7 @@ export function socketInit(){
     });
 
     socket.addEventListener("message", (event) => {
-        // console.log("message from server: " + event.data);
+        console.log("message from server: " + event.data);
     });
 
     socket.addEventListener("error", (event) => {
@@ -15,4 +15,21 @@ export function socketInit(){
     });
 
     return socket
+}
+
+export async function getAllLines(){
+    const url = "";
+    let data = {};
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Response status: ${response.status}`);
+        }
+
+        const json = await response.json();
+        console.log(json);
+    }
+    catch {
+        console.error(error.message);
+    }
 }

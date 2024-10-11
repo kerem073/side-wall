@@ -27,6 +27,8 @@ export class Point{
     }
 }
 
+// TODO: refector the Canvas.addPoint, Line.addPoint en Line.drawLine. canvas calls line and the line calls other fuctions of its self. it is not pretty
+
 export class Line{
     line_id = 0;
     current_length = 0;
@@ -47,6 +49,11 @@ export class Line{
 
         this.points.push(point);
 
+        this.drawPoint(point, canvasContext);
+
+    }
+
+    drawPoint(point, canvasContext){
         canvasContext.beginPath();
         if (this.current_length == 0){
             canvasContext.strokeStyle = this.line_color;
@@ -65,8 +72,8 @@ export class Line{
             canvasContext.stroke();
         }
 
-        this.latest_point = point;
         this.current_length++;
+        this.latest_point = point;
     }
 
     newLine(){
@@ -100,12 +107,22 @@ export class CanvasManager {
         this.points_pool.push(msg);
     }
 
+    drawWholeCanvas(){
+
+    }
+
+
     sendPoints(socket){
         for (let i = 0; i < this.points_pool.length; i++){
             console.log("sending: " + JSON.stringify(this.points_pool[i]));
             socket.send(JSON.stringify(this.points_pool[i]));
         }
         this.points_pool = [];
+    }
+
+    receivePoints(socket){
+
+
     }
 
 }

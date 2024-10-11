@@ -1,5 +1,9 @@
 package main
 
+// TODO: load test + put it on a vps / laptopserver
+// TODO: touch events
+// TODO: AUTH?
+
 import (
 	"fmt"
 	"log"
@@ -11,6 +15,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Hub struct {
+	clients   []Client
+	broadcast chan MessageDTO
+}
+
+type Client struct {
+	conn *websocket.Conn
+	hub  *Hub
+}
+
 // UTILS
 type MessageDTO struct {
 	X             int    `json:"x"`
@@ -20,6 +34,7 @@ type MessageDTO struct {
 	LineColor     string `json:"line_color"`
 	LineThickness int    `json:"line_thickness"`
 	DateTime      string `json:"datetime"`
+	LineEnd       int    `json:"line_end"`
 }
 
 // CANVAS
@@ -90,12 +105,12 @@ func (c *Canvas) GetCanvas(db *sql.DB) {
 	c.Lines = nil
 
 	PointsQuery := "SELECT * FROM points"
-	rows, err := db.Query(PointsQuery) // TODO: de pointer is nil. hij kan het ook niet later references omdat het nil is. de pointer is er niet
+	rows, err := db.Query(PointsQuery)
 	if err != nil {
 		panic(err)
 	}
 
-	for rows.Next() { // if rows.Next() returns false (so there are no rows left): rows.Close() is automaticlly called
+	for rows.Next() { // INFO: if rows.Next() returns false (so there are no rows left): rows.Close() is automaticlly called
 		var point Point
 		rows.Scan(&point.Id, &point.X, &point.Y, &point.OrderNumber, &point.LineId, &point.DateTime)
 		c.Points = append(c.Points, point)
@@ -109,7 +124,7 @@ func (c *Canvas) GetCanvas(db *sql.DB) {
 		panic(err)
 	}
 
-	for rows.Next() { // if rows.Next() returns false (so there are no rows left): rows.Close() is automaticlly called
+	for rows.Next() { // INFO: if rows.Next() returns false (so there are no rows left): rows.Close() is automaticlly called
 		var line Line
 		rows.Scan(&line.Id, &line.Length, &line.Color, &line.Thickness)
 		c.Lines = append(c.Lines, line)
@@ -120,7 +135,6 @@ func (c *Canvas) GetCanvas(db *sql.DB) {
 }
 
 // https://www.alexedwards.net/blog/interfaces-explained
-// TODO: de-abstract everything. Alles moet in een file zitten. veel te vroeg ge abstraheerd. lekker veel global variables
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -141,6 +155,8 @@ func main() {
 	defer db.Close()
 
 	c := Canvas{}
+	hub := Hub{}
+	hub.broadcast = make(chan MessageDTO)
 
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
@@ -153,7 +169,24 @@ func main() {
 		}
 		defer conn.Close()
 
+		c := Client{}
+		c.conn = conn
+		c.hub = &hub
+		hub.clients = append(hub.clients, c)
+
 		var line Line
+
+		go func() {
+			for {
+				m := <-hub.broadcast
+				err := conn.WriteJSON(m)
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}()
+
+		// NOTE: Start websockets loop
 		for {
 			var msg MessageDTO
 
@@ -168,10 +201,9 @@ func main() {
 				fmt.Println(err)
 			}
 
-			if msg.LineId == line.Id { // NOTE: We collect all the points first and when a line ends, we add it to the database. so that we know the length of the line
-				line.AddPoint(msg)
-			} else if len(line.Points) > 0 { // NOTE: if the id's dont match check if we have points left from the previous line, if so, insert them with the line and line length
-
+			// INFO: if the lineend is 1; end of line reached and commit line to database
+			// else if the lineid is the same, then insert the point as the line id
+			if msg.LineEnd == 1 {
 				line.Length = len(line.Points)
 
 				err := line.InsertLine(tx)
@@ -187,8 +219,9 @@ func main() {
 				line.NewLine(msg)
 				line.AddPoint(msg)
 
-				// TODO: there should be a commit command comming from the client so the server know directly when to commit and not wait for a new line id
-			} else { // NOTE: if the ids dont match and there are no points, it is the first line, so create a new line and add the point
+			} else if msg.LineId == line.Id {
+				line.AddPoint(msg)
+			} else {
 				line.NewLine(msg)
 				line.AddPoint(msg)
 			}
@@ -198,7 +231,9 @@ func main() {
 				fmt.Println(err)
 			}
 
-			// TODO: Send points to other clients
+			for i := 0; i < len(hub.clients); i++ {
+				hub.broadcast <- msg
+			}
 		}
 	})
 
@@ -214,10 +249,8 @@ func main() {
 	})
 
 	log.Print("Listening on :3000")
-	if db != nil {
-		err = http.ListenAndServe(":3000", nil)
-		if err != nil {
-			log.Fatal(err)
-		}
+	err = http.ListenAndServe(":3000", nil)
+	if err != nil {
+		log.Fatal(err)
 	}
 }

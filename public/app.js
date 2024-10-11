@@ -1,11 +1,55 @@
 import { Point, Line, CanvasManager } from './canvas.js'
-import { socketInit, getAllLines } from './socket.js';
 import { UIPalette } from './UIPalette.js';
 
-const socket = socketInit();
+let socket = new WebSocket("ws://localhost:3000/point");
 
-//  TODO: NU HEREEE get other peoples strokes
-//
+socket.addEventListener("open", (event) => {
+    // socket.send("Connected");
+});
+
+let lines = [];
+let notInDrawingLines = false;
+socket.addEventListener("message", (event) => {
+    let point = JSON.parse(event.data);
+
+    if (lines.length == 0){
+        let l = new Line(point.line_color, point.line_thickness);
+        l.line_id = point.line_id;
+        lines.push(l);
+    }
+
+    for (let i = 0; i < lines.length; i++){
+        if (point.line_id == lines[i].line_id){
+            lines[i].drawPoint(point, canvasContext);
+            break;
+        }
+        if ((lines.length - 1) == i){
+            notInDrawingLines = true;
+        }
+    }
+    
+    if (notInDrawingLines){
+        let l = new Line(point.line_color, point.line_thickness);
+        l.line_id = point.line_id;
+        lines.push(l);
+    }
+
+    if (point.line_end == 1){
+        let indexToRemove;
+        for (let i = 0; i < lines.length; i++){
+            if (point.line_id == lines[i].line_id){
+                indexToRemove = i;
+                break;
+            }
+        }
+        lines.splice(indexToRemove, 1);
+    }
+});
+
+socket.addEventListener("error", (event) => {
+  console.log("WebSocket error: ", event);
+});
+
 //  TODO: implement AUTH + physical qr code? samen met de wsc? >>> if the average differences between points is big in very short amount of time, they will get a warning and then removed.
 
 const canvasElement = document.getElementById("canvas");
@@ -48,8 +92,8 @@ canvasElement.addEventListener("mousedown", (event) =>{
 
 canvasElement.addEventListener("mousemove", (event) =>{
     if (event.target.isEqualNode(canvasElement) && isDrawing){
-        canvasManager.addPoint(event.pageX, event.pageY, canvasContext);
-        canvasManager.sendPoints(socket);
+        canvasManager.addPoint(event.pageX, event.pageY, canvasContext, false);
+        canvasManager.sendPoints(socket); // FIX: The first point is not send. there are also other issues but i dont care
     }
     if (!uiPalette.UIdrag){
         event.stopPropagation()
@@ -58,11 +102,13 @@ canvasElement.addEventListener("mousemove", (event) =>{
 
 canvasElement.addEventListener("mouseup", (event) =>{
     isDrawing = false;
+    canvasManager.addPoint(event.pageX, event.pageY, canvasContext, true);
+    canvasManager.sendPoints(socket);
+    console.log(event);
 });
 
 
 document.addEventListener("mousedown", (event) => {
-    console.log("event mousedown on document works");
     if (!isDrawing && !event.target.isEqualNode(document.getElementById("strokeSlider"))){
         for (let element = event.target; !element.isEqualNode(document.body); element = element.parentNode){
             if (element.isEqualNode(UIPaletteElement)){
@@ -74,12 +120,10 @@ document.addEventListener("mousedown", (event) => {
 });
 
 document.addEventListener("mousemove", (event) => {
-    console.log("event mousemove on document works");
     uiPalette.eventMove(event.clientX, event.clientY);
 });
 
 document.addEventListener("mouseup", (event) => {
-    console.log("event mouseup on document works");
     uiPalette.eventEnd();
 });
 
@@ -128,7 +172,6 @@ async function getCanvasAndDraw(){
             }
             notInDrawingLines = false;
         }
-
     }
 }
 

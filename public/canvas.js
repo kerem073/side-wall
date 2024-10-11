@@ -1,3 +1,5 @@
+// TODO: de-abstract dit omdat ik veel te vroeg heb abstracteerd
+
 class MessageDTO{
     x = 0;
     y = 0;
@@ -14,6 +16,7 @@ export class Point{
     order_number = 0; // order of the point in the line
     line_id = 0; // the id of the line that the point
     datetime = 0;
+    line_end = 0;
 
     constructor(newx, newy, lid, order){
         this.x = newx;
@@ -26,8 +29,6 @@ export class Point{
         this.datetime = formattedDate;
     }
 }
-
-// TODO: refector the Canvas.addPoint, Line.addPoint en Line.drawLine. canvas calls line and the line calls other fuctions of its self. it is not pretty
 
 export class Line{
     line_id = 0;
@@ -91,7 +92,7 @@ export class CanvasManager {
         this.curLine = new Line(color, thickness);
     }
 
-    addPoint(x, y, canvasContext){
+    addPoint(x, y, canvasContext, isEnd){
         this.curLine.addPoint(x, y, canvasContext);
         let latest_point = this.curLine.latest_point;
         let msg = new MessageDTO();
@@ -103,9 +104,11 @@ export class CanvasManager {
         msg.datetime = latest_point.datetime;
         msg.line_color = this.curLine.line_color;
         msg.line_thickness = this.curLine.line_thickness;
+        msg.line_end = isEnd ? 1 : 0;
 
         this.points_pool.push(msg);
     }
+
 
     drawWholeCanvas(){
 

@@ -3,6 +3,19 @@
     padding: 0;
 }
 
+body{
+    /* overflow: scroll; */
+}
+body {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  body {
+    height: 100dvh;
+  }
+}
+
 #UI {
     position: fixed;
     left: 0px;

@@ -13,7 +13,6 @@ export class UIPalette{
     }
 
     eventStart(){
-        console.log("eventStart works");
         this.UIdrag = true;
 
         this.mouseOffsetX = parseFloat(this.UIPaletteElement.style.left + (this.UIPaletteElement.style.width / 2)) || 0;
@@ -24,7 +23,6 @@ export class UIPalette{
     }
 
     eventMove(clientx, clienty){
-        console.log("eventMove works");
         if(this.UIdrag){
             if (this.pmousex != 0){
                 let offsetx = clientx - this.pmousex;
@@ -49,7 +47,6 @@ export class UIPalette{
     }
 
     eventEnd(){
-        console.log("eventEnd works");
         this.UIdrag = false;
         this.pmousex = 0;
         this.pmousey = 0;

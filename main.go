@@ -1,16 +1,27 @@
 package main
 
-// TODO: load test + put it on a vps / laptopserver
-// TODO: touch events
-// TODO: AUTH?
+// TODO: optimization if it is needed. kijk naar de tools hier: https://www.youtube.com/watch?v=M0HER1G5BRw
+// https://dev.to/agamm/how-to-profile-go-with-pprof-in-30-seconds-592a
+// https://github.com/google/pprof?tab=readme-ov-file
+// This is good i think: https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
+// https://www.datacamp.com/tutorial/set-up-and-configure-mysql-in-docker
+// https://developer.mozilla.org/en-US/docs/Web/API/Performance_API
+// TODO: go testing / asserts
+// TODO: AUTH and cookies
+
+// ISSUE: When we refresh and start drawing, the server keeps sending websocket:close send on every point received i believe. after making a create tables if not exists db exec
+
+// NOTE: i should write code / api in such a way that someone else could use it easy and efficeiently
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
+	"os"
 
-	"database/sql"
-	"encoding/json"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
 )
@@ -140,19 +151,59 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
 func main() {
 
-	dsn := "root:lordofthegame666@tcp(127.0.0.1:3306)/sidewall2"
+	// db_name := os.Getenv("DB_NAME")
+	// db_pass := os.Getenv("DB_PASS")
+
+	// dsn := "root:" + db_pass + "@tcp(127.0.0.1:3306)/" + db_name // The database sidewall3 need to be made
+	dsn := "root:lordofthegame666@tcp(database:3306)/sidewall" // The database sidewall3 need to be made
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1) // TODO: docker doesnt use the most recent file dafuq
 	}
 
 	err = db.Ping()
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1) // TODO: docker doesnt use the most recent file dafuq
 	}
 	defer db.Close()
+
+	// OPTIM: should i completely setup the whole database from scratch? how does docker do that when a container gets run?
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS lines_details(
+		line_id VARCHAR(14) NOT NULL,
+		line_length INT,
+		line_color VARCHAR(7),
+		line_thickness INT,
+		PRIMARY KEY(line_id)
+	);`)
+	if err != nil {
+		os.Exit(1) // TODO: docker doesnt use the most recent file dafuq
+		fmt.Println(err)
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS points(
+		point_id INT AUTO_INCREMENT PRIMARY KEY,
+		x INT,
+		y INT,
+		order_number INT,
+		line_id VARCHAR(14),
+		datetime DATETIME,
+		FOREIGN KEY(line_id) REFERENCES lines_details(line_id)
+	)`)
+	if err != nil {
+		os.Exit(1) // TODO: docker doesnt use the most recent file dafuq
+		fmt.Println(err)
+	}
 
 	c := Canvas{}
 	hub := Hub{}
@@ -164,6 +215,7 @@ func main() {
 	http.HandleFunc("/point", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
+			os.Exit(1) // TODO: docker doesnt use the most recent file dafuq
 			log.Println(err)
 			return
 		}

@@ -1,0 +1,30 @@
+services:
+  database:
+    platform: "linux/x86_64"
+    image: "mysql:latest"
+    container_name: "db_mysql"
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: sidewall
+      MYSQL_ROOT_PASSWORD: lordofthegame666
+    volumes:
+      - "sidewall-database-volume:/var/lib/mysql"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    depends_on:
+      - "database"
+
+
+volumes:
+  sidewall-database-volume:
+
+networks:
+  mynet:
+    driver: "bridge"

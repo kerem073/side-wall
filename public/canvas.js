@@ -1,6 +1,6 @@
 // TODO: de-abstract dit omdat ik veel te vroeg heb abstracteerd
 
-class MessageDTO{
+class MessageDTO {
     x = 0;
     y = 0;
     order_number = 0;
@@ -10,7 +10,7 @@ class MessageDTO{
     datetime = 0;
 }
 
-export class Point{
+export class Point {
     x = 0;
     y = 0;
     order_number = 0; // order of the point in the line
@@ -18,7 +18,7 @@ export class Point{
     datetime = 0;
     line_end = 0;
 
-    constructor(newx, newy, lid, order){
+    constructor(newx, newy, lid, order) {
         this.x = newx;
         this.y = newy;
         this.order_number = order;
@@ -30,7 +30,7 @@ export class Point{
     }
 }
 
-export class Line{
+export class Line {
     line_id = 0;
     current_length = 0;
     line_color = 0;
@@ -38,14 +38,14 @@ export class Line{
     latest_point = 0;
     points = [];
 
-    constructor(color, weight){
+    constructor(color, weight) {
         this.newLine();
         this.line_color = color;
         this.line_thickness = weight;
     }
 
     // addPoint adds a point to the line and draws at the same time
-    addPoint(x, y, canvasContext){
+    addPoint(x, y, canvasContext) {
         let point = new Point(x, y, this.line_id, this.current_length);
 
         this.points.push(point);
@@ -54,9 +54,9 @@ export class Line{
 
     }
 
-    drawPoint(point, canvasContext){
+    drawPoint(point, canvasContext) {
         canvasContext.beginPath();
-        if (this.current_length == 0){
+        if (this.current_length == 0) {
             canvasContext.strokeStyle = this.line_color;
             canvasContext.lineWidth = this.line_thickness;
             canvasContext.lineCap = "round";
@@ -77,7 +77,7 @@ export class Line{
         this.latest_point = point;
     }
 
-    newLine(){
+    newLine() {
         this.line_id = Math.random().toString(16).slice(2);
         this.current_length = 0;
         this.points = [];
@@ -87,12 +87,12 @@ export class Line{
 export class CanvasManager {
     points_pool = [];
     curLine = 0;
-    
-    beginLine(color, thickness){
+
+    beginLine(color, thickness) {
         this.curLine = new Line(color, thickness);
     }
 
-    addPoint(x, y, canvasContext, isEnd){
+    addPoint(x, y, canvasContext, isEnd) {
         this.curLine.addPoint(x, y, canvasContext);
         let latest_point = this.curLine.latest_point;
         let msg = new MessageDTO();
@@ -110,20 +110,20 @@ export class CanvasManager {
     }
 
 
-    drawWholeCanvas(){
+    drawWholeCanvas() {
 
     }
 
 
-    sendPoints(socket){
-        for (let i = 0; i < this.points_pool.length; i++){
+    sendPoints(socket) {
+        for (let i = 0; i < this.points_pool.length; i++) {
             console.log("sending: " + JSON.stringify(this.points_pool[i]));
             socket.send(JSON.stringify(this.points_pool[i]));
         }
         this.points_pool = [];
     }
 
-    receivePoints(socket){
+    receivePoints(socket) {
 
 
     }

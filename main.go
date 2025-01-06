@@ -28,7 +28,7 @@ import (
 
 type Hub struct {
 	clients   []Client
-	broadcast chan MessageDTO
+	broadcast chan PointMessage
 }
 
 type Client struct {
@@ -37,7 +37,7 @@ type Client struct {
 }
 
 // UTILS
-type MessageDTO struct {
+type PointMessage struct {
 	X             int    `json:"x"`
 	Y             int    `json:"y"`
 	OrderNumber   int    `json:"order_number"`
@@ -88,7 +88,7 @@ func (line Line) InsertPointPool(tx *sql.Tx) error {
 	return nil
 }
 
-func (line *Line) AddPoint(msg MessageDTO) {
+func (line *Line) AddPoint(msg PointMessage) {
 	var point Point
 	point.X = msg.X
 	point.Y = msg.Y
@@ -98,7 +98,7 @@ func (line *Line) AddPoint(msg MessageDTO) {
 	line.Points = append(line.Points, point)
 }
 
-func (line *Line) NewLine(msg MessageDTO) {
+func (line *Line) NewLine(msg PointMessage) {
 	line.Color = msg.LineColor
 	line.Id = msg.LineId
 	line.Thickness = msg.LineThickness
@@ -163,7 +163,8 @@ func main() {
 	// db_pass := os.Getenv("DB_PASS")
 
 	// dsn := "root:" + db_pass + "@tcp(127.0.0.1:3306)/" + db_name // The database sidewall3 need to be made
-	dsn := "root:lordofthegame666@tcp(database:3306)/sidewall" // The database sidewall3 need to be made
+	dsn := "root:lordofthegame666@tcp(127.0.0.1:3306)/sidewall" // The database sidewall3 need to be made
+	// dsn := "root:lordofthegame666@tcp(database:3306)/sidewall" // The database sidewall3 need to be made
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		fmt.Println(err)
@@ -207,7 +208,7 @@ func main() {
 
 	c := Canvas{}
 	hub := Hub{}
-	hub.broadcast = make(chan MessageDTO)
+	hub.broadcast = make(chan PointMessage)
 
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
@@ -240,7 +241,7 @@ func main() {
 
 		// NOTE: Start websockets loop
 		for {
-			var msg MessageDTO
+			var msg PointMessage
 
 			err := conn.ReadJSON(&msg)
 			if err != nil {
